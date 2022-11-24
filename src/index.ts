@@ -5,7 +5,7 @@ import {argv} from 'node:process'
 
 
 
-const pytifications = {
+export const pytifications = {
     _login:null,
     _password:null,
     _logged_in:false,
@@ -88,7 +88,9 @@ const pytifications = {
                 }
             }
         }).catch(err => {
-            console.log(err)
+            if(err.response.status != 404){
+                console.log(`error when checking for callbacks: ${err.response}`)
+            }
         })
 
         
@@ -106,7 +108,8 @@ const pytifications = {
      * @param {string} message The message to be sent
      * @param {Array<Array<{text:string,callback:Function}>>} buttons An array of arrays corresponding to the columns and rows of buttons in the message, with callbacks
      */
-    send_message(message:string,buttons: Array<Array<{text:string,callback:Function}>>){
+    send_message(message:string,buttons: Array<Array<{text:string,callback:Function}>> = []){
+        console.log(buttons)
         pytifications._funcs_to_execute.push({function:pytifications._send_message,args:{message:message,buttons:buttons}})
     },
 
@@ -116,7 +119,7 @@ const pytifications = {
      * @param {string} message The message to be sent
      * @param {Array<Array<{text:string,callback:Function}>>} buttons An array of arrays corresponding to the columns and rows of buttons in the message, with callbacks
      */
-    edit_last_message(message,buttons){
+    edit_last_message(message:string,buttons: Array<Array<{text:string,callback:Function}>> = []){
         pytifications._funcs_to_execute.push({function:pytifications._edit_last_message,args:{message:message,buttons:buttons}})
     },
 
