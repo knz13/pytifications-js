@@ -1,7 +1,8 @@
 
+import axios from 'axios';
 import { sha256 } from 'js-sha256'
 import {argv} from 'node:process'
-import fetch from 'node-fetch'
+
 
 
 const pytifications = {
@@ -15,14 +16,13 @@ const pytifications = {
 
         pytifications._login = login;
         pytifications._password = password;
-
-        fetch('https://pytifications.herokuapp.com/initialize_script',{
+        
+        axios.post('https://pytifications.herokuapp.com/initialize_script',{
             body:JSON.stringify({
                 username:login,
                 password_hash:sha256(password),
                 script_name:process.argv0
             }),
-            method:"POST"
         }).then(async (res) => {
             if(res.status != 200){
                 console.log(`could not login... reason: ${await res.text()}`);
@@ -41,13 +41,12 @@ const pytifications = {
             if(! pytifications._logged_in){
                 continue;
             }
-            var res = await fetch('https://pytifications.herokuapp.com/get_callbacks',{
+            var res = await axios.get('https://pytifications.herokuapp.com/get_callbacks',{
             body:JSON.stringify({
                 username:pytifications._login,
                 password_hash:sha256(pytifications._password),
                 script_name:process.argv0
             }),
-            method:"GET"
             })
 
             if(res.status == 200){
@@ -77,14 +76,13 @@ const pytifications = {
             requestedButtons.push(rowButtons)
         }
         
-        const res = await fetch('https://pytifications.herokuapp.com/send_message',{
+        const res = await axios.post('https://pytifications.herokuapp.com/send_message',{
             body:JSON.stringify({
                 username:pytifications._login,
                 password_hash:sha256(pytifications._password),
                 message:message,
                 buttons:requestedButtons
             }),
-            method: "POST"
         })
 
         if(res.status != 200){
@@ -117,7 +115,7 @@ const pytifications = {
             requestedButtons.push(rowButtons)
         }
 
-        const res = await fetch('https://pytifications.herokuapp.com/edit_message',{
+        const res = await axios.patch('https://pytifications.herokuapp.com/edit_message',{
             body:JSON.stringify({
                 username:pytifications._login,
                 password_hash:sha256(pytifications._password),
@@ -125,7 +123,6 @@ const pytifications = {
                 message_id:pytifications._last_message_id,
                 buttons:requestedButtons
             }),
-            method: "PATCH"
         })
 
         if(res.status != 200){
