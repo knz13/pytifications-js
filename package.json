@@ -1,9 +1,9 @@
 {
   "name": "pytifications-js",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "A package to easily send messages from code to your telegram",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/knz13/pytifications-js.git"

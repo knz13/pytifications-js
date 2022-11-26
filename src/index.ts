@@ -13,6 +13,7 @@ export const pytifications = {
     _funcs_to_execute:[],
     _last_message_id:null,
     _interval:null,
+    _script_id:null,
 
     /**
      * Logs in to the pytifications network
@@ -29,6 +30,7 @@ export const pytifications = {
         var res = await axios.post('https://pytifications.herokuapp.com/initialize_script',JSON.stringify({
             username:login,
             password_hash:sha256(password),
+            script_language:'javascript',
             script_name:process.argv[1]
         }),)
 
@@ -42,6 +44,7 @@ export const pytifications = {
         }
         else {
             console.log(`success logging in to pytifications`);
+            pytifications._script_id = res.data
             pytifications._logged_in = true;
         }
         return true;
@@ -79,7 +82,7 @@ export const pytifications = {
         axios.get('https://pytifications.herokuapp.com/get_callbacks',{data:JSON.stringify({
             username:pytifications._login,
             password_hash:sha256(pytifications._password),
-            script_name:process.argv[1]
+            script_id:pytifications._script_id
         })},).then(res => {
             if(res.status == 200){
                 var json = res.data;
@@ -148,8 +151,9 @@ export const pytifications = {
         const res = await axios.post('https://pytifications.herokuapp.com/send_message',JSON.stringify({
             username:pytifications._login,
             password_hash:sha256(pytifications._password),
-            message:`Message sent from js script:\n${process.argv[1]}...\n\n${message}`,
-            buttons:requestedButtons
+            message:message,
+            buttons:requestedButtons,
+            script_id:pytifications._script_id
         }))
 
         if(res.status != 200){
@@ -188,9 +192,10 @@ export const pytifications = {
         const res = await axios.patch('https://pytifications.herokuapp.com/edit_message',JSON.stringify({
             username:pytifications._login,
             password_hash:sha256(pytifications._password),
-            message:`Message sent from js script:\n${process.argv[1]}...\n\n${message}`,
+            message:message,
             message_id:pytifications._last_message_id,
-            buttons:requestedButtons
+            buttons:requestedButtons,
+            script_id:pytifications._script_id
         }))
 
         if(res.status != 200){
