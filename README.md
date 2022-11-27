@@ -19,16 +19,13 @@ After that simply install from npm and use it!
 
     Pytifications.login('username_created_at_bot','_password_created_at_bot')
 
-    Pytifications.send_message("hi! i'm a message!")
+    pytifications.send_message("hi! i'm a message!")
 
     //you can also send messages with buttons and add callbacks!
 
-
-    //creating callback
     const myCallback = () => {
-        console.log('hi!!!')
 
-
+        
         //you can also edit the last message!
         pytifications.edit_last_message("I've been edited O.o",
             [
@@ -42,8 +39,8 @@ After that simply install from npm and use it!
         )
         
     }
-    //sending the message
-    pytifications.send_message('randomMessage',[
+
+    var msg = pytifications.send_message('some message...',[
         [
             {
                 text:'I am a button!',
@@ -52,11 +49,15 @@ After that simply install from npm and use it!
         ]
     ])
 
-
+    
     const secondCallback = () => {
-        console.log("thank you for using pytifications :D")
+        //editing the message from stored variable
+        msg.edit("thank you for using pytifications :D");
 
         /*Do not forget to call this method when you're done, it closes the pytifications event loop in the background*/
         pytifications.terminate()
     }
+
+
+
 

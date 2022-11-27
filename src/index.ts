@@ -1,16 +1,61 @@
 
 import axios from 'axios';
 import { sha256 } from 'js-sha256'
-import {argv} from 'node:process'
+import { type } from 'node:os';
+import {argv, off} from 'node:process'
 
+interface InternalPytificationsQueuedTask {
+    function: (obj:any) => Promise<any>,
+    args: any,
+    additional_tasks: Array<InternalPytificationsQueuedTask>,
+    on_done?: (value: {valid:boolean,result:any}) => void,
+    value?: number
+}
 
+class PytificationsMessage {
+    _inner_object: InternalPytificationsQueuedTask
+    constructor(obj: InternalPytificationsQueuedTask){
+        this._inner_object = obj
+    }
+
+    /**
+     * Pushes a message into the queue to substitute this message, if possible
+     * 
+     * @param {string} message The message to be sent
+     * @param {Array<Array<{text:string,callback:Function}>>} buttons An array of arrays corresponding to the columns and rows of buttons in the message, with callbacks
+     */
+    edit(message:string = "", buttons:Array<Array<{text:string,callback:Function}>> = []) {
+        if(this._inner_object.value){
+            pytifications._edit_last_message({
+                message: message,
+                buttons: buttons,
+                message_id: this._inner_object.value
+            });
+        }
+        else {
+            this._inner_object.additional_tasks.push({function:async (obj) => {
+                if(this._inner_object.value){
+                    pytifications._edit_last_message(obj)
+                }
+                else {
+                    console.log(`Could not edit message, id was not valid!`)
+                }
+            
+            },args:{
+                message: message,
+                buttons: buttons,
+                message_id: this._inner_object.value
+            },additional_tasks:[]})
+        }
+    }
+}
 
 export const pytifications = {
     _login:null,
     _password:null,
     _logged_in:false,
     _registered_callbacks:{},
-    _funcs_to_execute:[],
+    _funcs_to_execute:[] as Array<InternalPytificationsQueuedTask>,
     _last_message_id:null,
     _interval:null,
     _script_id:null,
@@ -57,13 +102,14 @@ export const pytifications = {
     terminate(){
         pytifications._funcs_to_execute.push(
             {
-                function:(obj) => {
+                function:async (obj) => {
                     if(pytifications._interval != null){
                         clearInterval(pytifications._interval)
                     }
                     pytifications._logged_in = false
                 },
-                args:''
+                args:'',
+                additional_tasks: []
             }
         )
     },
@@ -75,8 +121,21 @@ export const pytifications = {
         return pytifications._logged_in
     },
 
+    _execute_all_tasks(arr: Array<InternalPytificationsQueuedTask>) {
+        for(const item of arr){
+            item.function(item.args).then(res => {
+                if(item.on_done && res){
+                    item.on_done(res);
+                }
+                if(item.additional_tasks){
+                    pytifications._execute_all_tasks(item.additional_tasks)
+                }
+            })
+        }
+    },
+
     _check_if_any_callbacks_to_be_called(){
-        if(! pytifications._logged_in){
+        if(!pytifications._logged_in){
             return;
         }   
         axios.get('https://pytifications.herokuapp.com/get_callbacks',{data:JSON.stringify({
@@ -97,10 +156,8 @@ export const pytifications = {
         })
 
         
-        for(const todo of pytifications._funcs_to_execute){
-            
-            todo.function(todo.args)
-        }
+        pytifications._execute_all_tasks(pytifications._funcs_to_execute)
+
         pytifications._funcs_to_execute = []
 
     },
@@ -110,10 +167,16 @@ export const pytifications = {
      * 
      * @param {string} message The message to be sent
      * @param {Array<Array<{text:string,callback:Function}>>} buttons An array of arrays corresponding to the columns and rows of buttons in the message, with callbacks
+     * @return {}
      */
     send_message(message:string,buttons: Array<Array<{text:string,callback:Function}>> = []){
-        console.log(buttons)
-        pytifications._funcs_to_execute.push({function:pytifications._send_message,args:{message:message,buttons:buttons}})
+        //console.log(buttons)
+        var obj = {function:pytifications._send_message,args:{message:message,buttons:buttons},on_done:null,additional_tasks:[]} as InternalPytificationsQueuedTask
+        obj.on_done = (res) => {
+            obj.value = res.result
+        }
+        pytifications._funcs_to_execute.push(obj)
+        return new PytificationsMessage(obj);
     },
 
     /**
@@ -122,8 +185,8 @@ export const pytifications = {
      * @param {string} message The message to be sent
      * @param {Array<Array<{text:string,callback:Function}>>} buttons An array of arrays corresponding to the columns and rows of buttons in the message, with callbacks
      */
-    edit_last_message(message:string,buttons: Array<Array<{text:string,callback:Function}>> = []){
-        pytifications._funcs_to_execute.push({function:pytifications._edit_last_message,args:{message:message,buttons:buttons}})
+    edit_last_message(message:string = "",buttons: Array<Array<{text:string,callback:Function}>> = []){
+        pytifications._funcs_to_execute.push({function:pytifications._edit_last_message,args:{message:message,buttons:buttons},additional_tasks:[]})
     },
 
 
@@ -132,7 +195,7 @@ export const pytifications = {
         var message = obj.message
         var buttons = obj.buttons
         if(!pytifications._check_login()){
-            return false;
+            return {valid: false,result: null};
         }
 
         var requestedButtons = []
@@ -147,7 +210,7 @@ export const pytifications = {
             }
             requestedButtons.push(rowButtons)
         }
-        
+        var valid = true;
         const res = await axios.post('https://pytifications.herokuapp.com/send_message',JSON.stringify({
             username:pytifications._login,
             password_hash:sha256(pytifications._password),
@@ -158,20 +221,21 @@ export const pytifications = {
 
         if(res.status != 200){
             console.log(`could not send message... reason: ${await res.data}`);
-            return false;
+            valid = false;
         }
-        pytifications._last_message_id = await res.data
+        pytifications._last_message_id = res.data
 
         console.log(`sent message: "${message}"`)
 
-        return true;
+        return {valid: valid,result: res.data};
     },
 
     async _edit_last_message(obj){
         var message = obj.message
         var buttons = obj.buttons
+        var message_id = obj.message_id
         
-        if(!pytifications._check_login() || pytifications._last_message_id == null){
+        if(!pytifications._check_login() || (pytifications._last_message_id == null && message_id == null)){
             return false;
         }
 
@@ -187,16 +251,21 @@ export const pytifications = {
                 })
             }
             requestedButtons.push(rowButtons)
-        }
+        }   
 
-        const res = await axios.patch('https://pytifications.herokuapp.com/edit_message',JSON.stringify({
+        var requestData ={
             username:pytifications._login,
             password_hash:sha256(pytifications._password),
-            message:message,
-            message_id:pytifications._last_message_id,
+            message_id:message_id == null? pytifications._last_message_id : message_id,
             buttons:requestedButtons,
             script_id:pytifications._script_id
-        }))
+        }
+
+        if(message != ""){
+            requestData["message"] = message
+        }
+
+        const res = await axios.patch('https://pytifications.herokuapp.com/edit_message',JSON.stringify(requestData))
 
         if(res.status != 200){
             console.log(`could not edit message... reason: ${await res.data}`);
